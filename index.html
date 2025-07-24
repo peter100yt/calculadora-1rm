@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3b82f6">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora 1RM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        .header-area {
+            background-color: #3b82f6;
+            padding: 1.5rem 1rem;
+            position: relative;
+            z-index: 10;
+        }
+        .content-area {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            /* Aumentando a altura do fundo azul para pelo menos o dobro */
+            background: linear-gradient(to bottom, #3b82f6 0%, #3b82f6 120px, transparent 120px, transparent 100%);
+        }
+        .scrollable-content {
+            height: 100%;
+            overflow-y: auto;
+            padding: 0 1rem 5rem 1rem;
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .scrollable-content::-webkit-scrollbar {
+            display: none;  /* Chrome, Safari, Opera */
+        }
+        .input-field {
+            transition: all 0.3s ease;
+        }
+        .input-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        /* Melhorando as transições de página */
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Transição apenas para calculadora e resultados */
+        .page.with-transition {
+            transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+        .page.active {
+            transform: translateX(0);
+            opacity: 1;
+            z-index: 1;
+        }
+        .page.left {
+            transform: translateX(-100%);
+            opacity: 0;
+            z-index: 0;
+        }
+        .page.right {
+            transform: translateX(100%);
+            opacity: 0;
+            z-index: 0;
+        }
+        .hidden-page {
+            display: none;
+        }
+        .rounded-xl {
+            border-radius: 1rem;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+        }
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 0;
+            transition: all 0.2s ease;
+        }
+        .nav-item.active {
+            color: #3b82f6;
+        }
+        .nav-item:not(.active) {
+            color: #64748b;
+        }
+        .nav-item:hover:not(.active) {
+            color: #475569;
+        }
+        .save-button-container {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            z-index: 45;
+            padding: 0 16px;
+        }
+        /* Estilos para as caixas expansíveis - corrigido para manter cantos arredondados */
+        .expandable-header {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 1rem;
+        }
+        .expandable-header:hover {
+            background-color: #f1f5f9;
+        }
+        .expandable-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .expandable-content.expanded {
+            max-height: 500px;
+            padding-top: 1rem;
+            padding-bottom: 0.5rem;
+        }
+        .expandable-icon {
+            transition: transform 0.3s ease;
+        }
+        .expandable-icon.rotated {
+            transform: rotate(180deg);
+        }
+        /* Adicionando mais espaço entre o cabeçalho e o conteúdo */
+        .content-spacing {
+            padding-top: 2rem;
+        }
+        /* Estilo específico para manter os cantos arredondados nas seções de ajuda */
+        .help-section {
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        /* Quando expandido, apenas a borda inferior pode ficar reta */
+        .help-section.expanded .expandable-header {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            max-width: 90%;
+            text-align: center;
+        }
+        .toast-notification.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Calculator Page -->
+        <div id="calculatorPage" class="page with-transition active">
+            <div class="header-area">
+                <h1 class="text-2xl font-bold text-white">Calculadora</h1>
+            </div>
+            
+            <div class="content-area">
+                <div class="scrollable-content">
+                    <div class="max-w-lg mx-auto pt-4 content-spacing">
+                        <!-- Calculator Card -->
+                        <div class="bg-white rounded-xl shadow-md p-5 mb-6">
+                            <form id="rmCalculator" class="space-y-5">
+                                <!-- Weight Input -->
+                                <div>
+                                    <label for="weight" class="block text-sm font-medium text-gray-700 mb-1">Peso Utilizado (kg)</label>
+                                    <input type="number" id="weight" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-field" placeholder="Ex: 50" min="0" step="0.5" required>
+                                </div>
+
+                                <!-- Repetitions Input -->
+                                <div>
+                                    <label for="reps" class="block text-sm font-medium text-gray-700 mb-1">Número de Repetições</label>
+                                    <input type="number" id="reps" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-field" placeholder="Ex: 8" min="1" max="15" step="1" required>
+                                    <p class="text-xs text-gray-500 mt-1">Recomendado: entre 1 e 15 repetições para maior precisão</p>
+                                </div>
+
+                                <!-- Calculate Button - com espaçamento aumentado e sem ícone -->
+                                <div class="pt-3">
+                                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center">
+                                        Calcular 1RM
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Page (Hidden by default) -->
+        <div id="resultsPage" class="page with-transition right">
+            <div class="header-area">
+                <button id="backButton" class="text-white flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="content-area">
+                <div class="scrollable-content">
+                    <div class="max-w-lg mx-auto pt-4 pb-20 content-spacing">
+                        <!-- Results Card -->
+                        <div class="bg-white rounded-xl shadow-md p-5 mb-6">
+                            <h3 class="text-lg font-semibold text-blue-800 mb-3">Resultados</h3>
+                            
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700 font-medium">1RM Estimado:</span>
+                                    <span id="rm1Result" class="text-blue-800 font-bold text-xl">0 kg</span>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <h4 class="text-sm font-medium text-gray-700">Zonas de Intensidade:</h4>
+                                <div class="grid grid-cols-2 gap-2 text-sm">
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">95% (Força Máxima)</div>
+                                        <div id="zone95" class="font-medium">0 kg</div>
+                                    </div>
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">90% (Força)</div>
+                                        <div id="zone90" class="font-medium">0 kg</div>
+                                    </div>
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">85% (Força/Hipertrofia)</div>
+                                        <div id="zone85" class="font-medium">0 kg</div>
+                                    </div>
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">80% (Hipertrofia)</div>
+                                        <div id="zone80" class="font-medium">0 kg</div>
+                                    </div>
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">70% (Hipertrofia/Resistência)</div>
+                                        <div id="zone70" class="font-medium">0 kg</div>
+                                    </div>
+                                    <div class="bg-gray-50 p-2 rounded-lg">
+                                        <div class="text-gray-600">60% (Resistência Muscular)</div>
+                                        <div id="zone60" class="font-medium">0 kg</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 pt-3 border-t border-gray-200">
+                                <p class="text-xs text-gray-500">
+                                    Equação utilizada: <span id="equationUsed" class="font-medium">Brzycki</span>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Info Card - com parágrafos unidos -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <div class="flex items-start">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                </svg>
+                                <div class="text-xs text-gray-600">
+                                    <p>A predição de 1RM é uma estimativa e pode variar de acordo com diversos fatores individuais. Utilize este cálculo como referência para prescrição de exercícios, sempre considerando a condição clínica do paciente.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Fixed Save Button - Sem a barra branca e sem ícone -->
+            <div class="save-button-container">
+                <div class="max-w-lg mx-auto">
+                    <button id="saveButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg shadow-lg transition duration-300 flex items-center justify-center">
+                        Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Saved Page (Hidden by default) -->
+        <div id="savedPage" class="page hidden-page">
+            <div class="header-area">
+                <h1 class="text-2xl font-bold text-white">Salvos</h1>
+            </div>
+            
+            <div class="content-area">
+                <div class="scrollable-content">
+                    <div class="max-w-lg mx-auto pt-4 pb-20 content-spacing">
+                        <div id="savedList" class="space-y-4">
+                            <!-- Os itens salvos serão inseridos aqui dinamicamente -->
+                            <div class="bg-white rounded-xl shadow-md p-4 text-center text-gray-500">
+                                Nenhum cálculo salvo ainda.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Help Page (Hidden by default) -->
+        <div id="helpPage" class="page hidden-page">
+            <div class="header-area">
+                <h1 class="text-2xl font-bold text-white">Ajuda</h1>
+            </div>
+            
+            <div class="content-area">
+                <div class="scrollable-content">
+                    <div class="max-w-lg mx-auto pt-4 pb-20 content-spacing">
+                        <div class="bg-white rounded-xl shadow-md mb-6 help-section">
+                            <!-- Seção expansível: Como usar a calculadora -->
+                            <div class="expandable-section">
+                                <div class="expandable-header flex justify-between items-center p-5">
+                                    <h3 class="text-lg font-semibold text-blue-800">Como usar a calculadora</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 expandable-icon" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="expandable-content px-5 border-t border-gray-100">
+                                    <div class="space-y-4 text-gray-700">
+                                        <div>
+                                            <h4 class="font-medium mb-1">O que é 1RM?</h4>
+                                            <p class="text-sm">1RM (Uma Repetição Máxima) é o peso máximo que você consegue levantar em um exercício específico com a técnica correta para uma repetição completa.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Como calcular:</h4>
+                                            <ol class="text-sm list-decimal list-inside space-y-2 pl-2">
+                                                <li>Insira o peso utilizado no exercício</li>
+                                                <li>Insira o número de repetições realizadas (ideal entre 1-15)</li>
+                                                <li>Clique em "Calcular 1RM"</li>
+                                                <li>Visualize seu 1RM estimado e as zonas de intensidade</li>
+                                            </ol>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Zonas de intensidade:</h4>
+                                            <ul class="text-sm space-y-1">
+                                                <li><span class="font-medium">95%</span> - Força Máxima (1-2 repetições)</li>
+                                                <li><span class="font-medium">90%</span> - Força (2-4 repetições)</li>
+                                                <li><span class="font-medium">85%</span> - Força/Hipertrofia (4-6 repetições)</li>
+                                                <li><span class="font-medium">80%</span> - Hipertrofia (6-8 repetições)</li>
+                                                <li><span class="font-medium">70%</span> - Hipertrofia/Resistência (8-12 repetições)</li>
+                                                <li><span class="font-medium">60%</span> - Resistência Muscular (12-15+ repetições)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow-md help-section">
+                            <!-- Seção expansível: Perguntas frequentes -->
+                            <div class="expandable-section">
+                                <div class="expandable-header flex justify-between items-center p-5">
+                                    <h3 class="text-lg font-semibold text-blue-800">Perguntas frequentes</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 expandable-icon" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="expandable-content px-5 border-t border-gray-100">
+                                    <div class="space-y-4 text-gray-700">
+                                        <div>
+                                            <h4 class="font-medium mb-1">Qual equação é utilizada?</h4>
+                                            <p class="text-sm">Você pode escolher entre as equações de Brzycki, Epley e Lander na página de Configurações. Cada uma pode produzir resultados ligeiramente diferentes.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">O resultado é preciso?</h4>
+                                            <p class="text-sm">O cálculo é uma estimativa e pode variar de acordo com diversos fatores individuais como técnica, experiência, tipo de exercício e fadiga.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Como salvar meus cálculos?</h4>
+                                            <p class="text-sm">Após calcular seu 1RM, clique no botão "Salvar" na parte inferior da tela e dê um nome ao seu registro.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Qual equação devo usar?</h4>
+                                            <p class="text-sm">Brzycki é mais precisa para repetições entre 1-10, Epley funciona bem para 1-15 repetições, e Lander é uma alternativa popular. Experimente as três para ver qual se adapta melhor ao seu caso.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Seção expansível: Sobre as equações -->
+                        <div class="bg-white rounded-xl shadow-md mt-6 help-section">
+                            <div class="expandable-section">
+                                <div class="expandable-header flex justify-between items-center p-5">
+                                    <h3 class="text-lg font-semibold text-blue-800">Sobre as equações</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 expandable-icon" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="expandable-content px-5 border-t border-gray-100">
+                                    <div class="space-y-4 text-gray-700">
+                                        <div>
+                                            <h4 class="font-medium mb-1">Brzycki (1993)</h4>
+                                            <p class="text-sm">Fórmula: 1RM = peso / (1.0278 - 0.0278 × repetições)</p>
+                                            <p class="text-sm mt-1">Esta equação é considerada mais precisa para repetições entre 1-10.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Epley</h4>
+                                            <p class="text-sm">Fórmula: 1RM = peso × (1 + 0.0333 × repetições)</p>
+                                            <p class="text-sm mt-1">Funciona bem para repetições entre 1-15.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 class="font-medium mb-1">Lander</h4>
+                                            <p class="text-sm">Fórmula: 1RM = (100 × peso) / (101.3 - 2.67123 × repetições)</p>
+                                            <p class="text-sm mt-1">Outra equação popular para estimar 1RM.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Page (Hidden by default) -->
+        <div id="settingsPage" class="page hidden-page">
+            <div class="header-area">
+                <h1 class="text-2xl font-bold text-white">Configurações</h1>
+            </div>
+            
+            <div class="content-area">
+                <div class="scrollable-content">
+                    <div class="max-w-lg mx-auto pt-4 pb-20 content-spacing">
+                        <div class="bg-white rounded-xl shadow-md p-5 mb-6">
+                            <h3 class="text-lg font-semibold text-blue-800 mb-3">Preferências</h3>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="flex items-center justify-between">
+                                        <span class="text-gray-700">Unidade de medida</span>
+                                        <select id="unitSetting" class="px-3 py-2 border border-gray-300 rounded-lg input-field bg-gray-50 text-gray-800">
+                                            <option value="kg" selected>Quilogramas (kg)</option>
+                                            <option value="lb" disabled>Libras (lb) - Em breve</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                
+                                <div>
+                                    <label class="flex items-center justify-between">
+                                        <span class="text-gray-700">Equação padrão</span>
+                                        <select id="equationSetting" class="px-3 py-2 border border-gray-300 rounded-lg input-field bg-gray-50 text-gray-800">
+                                            <option value="brzycki" selected>Brzycki</option>
+                                            <option value="epley">Epley</option>
+                                            <option value="lander">Lander</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                
+                                <div>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="form-checkbox h-5 w-5 text-blue-600 rounded" checked>
+                                        <span class="ml-2 text-gray-700">Mostrar todas as zonas de intensidade</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow-md p-5">
+                            <h3 class="text-lg font-semibold text-blue-800 mb-3">Dados</h3>
+                            
+                            <div class="space-y-4">
+                                <button id="clearDataButton" class="w-full bg-red-100 hover:bg-red-200 text-red-700 font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                    Limpar todos os cálculos salvos
+                                </button>
+                                
+                                <div class="text-xs text-gray-500 text-center">
+                                    <p>Versão 1.0.0</p>
+                                    <p>© 2023 Calculadora 1RM</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation (não aparece na página de resultados) -->
+        <nav id="bottomNav" class="bottom-nav">
+            <div class="max-w-lg mx-auto grid grid-cols-4 text-xs">
+                <button id="navCalculator" class="nav-item active">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Calculadora
+                </button>
+                <button id="navSaved" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                    Salvos
+                </button>
+                <button id="navHelp" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Ajuda
+                </button>
+                <button id="navSettings" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Config.
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Save Modal -->
+    <div id="saveModal" class="modal">
+        <div class="modal-content bg-white rounded-xl shadow-xl p-5 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Salvar Cálculo</h3>
+            
+            <form id="saveForm" class="space-y-4">
+                <div>
+                    <label for="saveName" class="block text-sm font-medium text-gray-700 mb-1">Nome do registro</label>
+                    <input type="text" id="saveName" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-field" placeholder="Ex: Supino - João" required>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button type="button" id="cancelSave" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-300">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300">
+                        Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content bg-white rounded-xl shadow-xl p-5 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Limpar dados</h3>
+            
+            <p class="text-gray-600 mb-4">Tem certeza que deseja excluir todos os cálculos salvos? Esta ação não pode ser desfeita.</p>
+            
+            <div class="flex space-x-3">
+                <button id="cancelDelete" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-300">
+                    Cancelar
+                </button>
+                <button id="confirmDelete" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300">
+                    Excluir tudo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Single Delete Modal -->
+    <div id="singleDeleteModal" class="modal">
+        <div class="modal-content bg-white rounded-xl shadow-xl p-5 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Excluir registro</h3>
+            
+            <p class="text-gray-600 mb-4">Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.</p>
+            
+            <div class="flex space-x-3">
+                <button id="cancelSingleDelete" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-300">
+                    Cancelar
+                </button>
+                <button id="confirmSingleDelete" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300">
+                    Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="toast-notification">
+        Registro excluído com sucesso
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos principais
+            const form = document.getElementById('rmCalculator');
+            const calculatorPage = document.getElementById('calculatorPage');
+            const resultsPage = document.getElementById('resultsPage');
+            const savedPage = document.getElementById('savedPage');
+            const helpPage = document.getElementById('helpPage');
+            const settingsPage = document.getElementById('settingsPage');
+            const backButton = document.getElementById('backButton');
+            const saveButton = document.getElementById('saveButton');
+            const saveModal = document.getElementById('saveModal');
+            const saveForm = document.getElementById('saveForm');
+            const cancelSave = document.getElementById('cancelSave');
+            const deleteModal = document.getElementById('deleteModal');
+            const clearDataButton = document.getElementById('clearDataButton');
+            const cancelDelete = document.getElementById('cancelDelete');
+            const confirmDelete = document.getElementById('confirmDelete');
+            const bottomNav = document.getElementById('bottomNav');
+            const singleDeleteModal = document.getElementById('singleDeleteModal');
+            const cancelSingleDelete = document.getElementById('cancelSingleDelete');
+            const confirmSingleDelete = document.getElementById('confirmSingleDelete');
+            const toastNotification = document.getElementById('toastNotification');
+            
+            // Variável para armazenar o ID do registro a ser excluído
+            let currentDeleteId = null;
+            
+            // Elementos de navegação
+            const navCalculator = document.getElementById('navCalculator');
+            const navSaved = document.getElementById('navSaved');
+            const navHelp = document.getElementById('navHelp');
+            const navSettings = document.getElementById('navSettings');
+            
+            // Configurar seções expansíveis - todas retraídas por padrão
+            const expandableSections = document.querySelectorAll('.expandable-section');
+            expandableSections.forEach(section => {
+                const header = section.querySelector('.expandable-header');
+                const content = section.querySelector('.expandable-content');
+                const icon = section.querySelector('.expandable-icon');
+                const helpSection = section.closest('.help-section');
+                
+                // Todas as seções começam retraídas
+                content.classList.remove('expanded');
+                icon.classList.remove('rotated');
+                
+                header.addEventListener('click', () => {
+                    content.classList.toggle('expanded');
+                    icon.classList.toggle('rotated');
+                    
+                    // Adicionar/remover classe para controlar os cantos arredondados
+                    if (helpSection) {
+                        if (content.classList.contains('expanded')) {
+                            helpSection.classList.add('expanded');
+                        } else {
+                            helpSection.classList.remove('expanded');
+                        }
+                    }
+                });
+            });
+            
+            // Função para mostrar o modal de salvamento
+            function showSaveModal() {
+                saveModal.classList.add('active');
+            }
+            
+            // Função para esconder o modal de salvamento
+            function hideSaveModal() {
+                saveModal.classList.remove('active');
+                document.getElementById('saveName').value = '';
+            }
+            
+            // Função para mostrar o modal de exclusão
+            function showDeleteModal() {
+                deleteModal.classList.add('active');
+            }
+            
+            // Função para esconder o modal de exclusão
+            function hideDeleteModal() {
+                deleteModal.classList.remove('active');
+            }
+            
+            // Função para mostrar o modal de exclusão de um único registro
+            function showSingleDeleteModal(id) {
+                currentDeleteId = id;
+                singleDeleteModal.classList.add('active');
+            }
+            
+            // Função para esconder o modal de exclusão de um único registro
+            function hideSingleDeleteModal() {
+                singleDeleteModal.classList.remove('active');
+                currentDeleteId = null;
+            }
+            
+            // Função para mostrar notificação toast
+            function showToast(message) {
+                toastNotification.textContent = message;
+                toastNotification.classList.add('show');
+                
+                setTimeout(() => {
+                    toastNotification.classList.remove('show');
+                }, 3000);
+            }
+            
+            // Função para alternar entre páginas com ou sem animação
+            function showPage(page, useTransition = false, direction = 'right') {
+                // Determinar a página atual
+                let currentPage;
+                const allPages = [calculatorPage, resultsPage, savedPage, helpPage, settingsPage];
+                
+                allPages.forEach(p => {
+                    if (p.classList.contains('active')) {
+                        currentPage = p;
+                    }
+                });
+                
+                if (!currentPage) {
+                    currentPage = calculatorPage;
+                }
+                
+                // Não fazer nada se a página atual for a mesma que queremos mostrar
+                if (currentPage === page) {
+                    return;
+                }
+                
+                // Verificar se é uma transição entre calculadora e resultados
+                const isCalcResultTransition = 
+                    (currentPage === calculatorPage && page === resultsPage) || 
+                    (currentPage === resultsPage && page === calculatorPage);
+                
+                // Usar transição apenas entre calculadora e resultados
+                if (isCalcResultTransition) {
+                    // Definir a direção da animação
+                    const currentOut = direction === 'right' ? 'left' : 'right';
+                    const newIn = direction === 'right' ? 'right' : 'left';
+                    
+                    // Animar a saída da página atual
+                    currentPage.classList.remove('active');
+                    currentPage.classList.add(currentOut);
+                    
+                    // Preparar a nova página para entrar
+                    page.classList.remove('left', 'right');
+                    page.classList.add(newIn);
+                    
+                    // Forçar um reflow para garantir que as transições funcionem
+                    void page.offsetWidth;
+                    
+                    // Animar a entrada da nova página
+                    page.classList.add('active');
+                    page.classList.remove(newIn);
+                } else {
+                    // Para outras páginas, apenas alternar a visibilidade sem animação
+                    currentPage.classList.remove('active');
+                    currentPage.classList.add('hidden-page');
+                    
+                    page.classList.remove('hidden-page');
+                    page.classList.add('active');
+                }
+                
+                // Atualizar navegação
+                navCalculator.classList.remove('active');
+                navSaved.classList.remove('active');
+                navHelp.classList.remove('active');
+                navSettings.classList.remove('active');
+                
+                // Mostrar ou esconder o menu de navegação
+                if (page === resultsPage) {
+                    bottomNav.style.display = 'none';
+                } else {
+                    bottomNav.style.display = 'block';
+                    
+                    if (page === calculatorPage) {
+                        navCalculator.classList.add('active');
+                    } else if (page === savedPage) {
+                        navSaved.classList.add('active');
+                        loadSavedCalculations(); // Carregar cálculos salvos
+                    } else if (page === helpPage) {
+                        navHelp.classList.add('active');
+                    } else if (page === settingsPage) {
+                        navSettings.classList.add('active');
+                    }
+                }
+            }
+            
+            // Função para carregar cálculos salvos
+            function loadSavedCalculations() {
+                const savedList = document.getElementById('savedList');
+                const savedCalculations = JSON.parse(localStorage.getItem('rmCalculations') || '[]');
+                
+                // Limpar a lista
+                savedList.innerHTML = '';
+                
+                if (savedCalculations.length === 0) {
+                    savedList.innerHTML = `
+                        <div class="bg-white rounded-xl shadow-md p-4 text-center text-gray-500">
+                            Nenhum cálculo salvo ainda.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Ordenar por data, do mais recente para o mais antigo
+                savedCalculations.sort((a, b) => {
+                    return new Date(b.date) - new Date(a.date);
+                });
+                
+                // Adicionar cada cálculo salvo à lista
+                savedCalculations.forEach((calc, index) => {
+                    const date = new Date(calc.date);
+                    const formattedDate = `${date.toLocaleDateString()} às ${date.toLocaleTimeString().substring(0, 5)}`;
+                    
+                    const savedItem = document.createElement('div');
+                    savedItem.className = 'bg-white rounded-xl shadow-md p-4';
+                    savedItem.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-medium text-gray-800">${calc.name}</h3>
+                            <span class="text-xs text-gray-500">${formattedDate}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-600">1RM:</span>
+                            <span class="font-bold text-blue-800">${calc.oneRM}</span>
+                        </div>
+                        <div class="text-xs text-gray-600 flex justify-between mb-2">
+                            <span>Peso: ${calc.weight}</span>
+                            <span>Repetições: ${calc.reps}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            Equação: ${calc.equation || 'Brzycki'}
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button class="delete-saved text-red-500 hover:text-red-700 text-sm" data-id="${calc.id}">
+                                Excluir
+                            </button>
+                        </div>
+                    `;
+                    savedList.appendChild(savedItem);
+                    
+                    // Adicionar evento para excluir item
+                    const deleteButton = savedItem.querySelector('.delete-saved');
+                    deleteButton.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        showSingleDeleteModal(id);
+                    });
+                });
+            }
+            
+            // Função para excluir um cálculo salvo
+            function deleteSavedCalculation(id) {
+                const savedCalculations = JSON.parse(localStorage.getItem('rmCalculations') || '[]');
+                const updatedCalculations = savedCalculations.filter(calc => calc.id != id);
+                localStorage.setItem('rmCalculations', JSON.stringify(updatedCalculations));
+                loadSavedCalculations();
+                showToast('Registro excluído com sucesso');
+            }
+            
+            // Eventos de navegação
+            navCalculator.addEventListener('click', function() {
+                showPage(calculatorPage);
+            });
+            
+            navSaved.addEventListener('click', function() {
+                showPage(savedPage);
+            });
+            
+            navHelp.addEventListener('click', function() {
+                showPage(helpPage);
+            });
+            
+            navSettings.addEventListener('click', function() {
+                showPage(settingsPage);
+            });
+            
+            // Evento de cálculo
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Get input values
+                const weight = parseFloat(document.getElementById('weight').value);
+                const reps = parseInt(document.getElementById('reps').value);
+                
+                // Validate inputs
+                if (isNaN(weight) || weight <= 0 || isNaN(reps) || reps <= 0) {
+                    alert('Por favor, insira valores válidos para peso e repetições.');
+                    return;
+                }
+                
+                // Obter a equação selecionada nas configurações
+                const equationSetting = document.getElementById('equationSetting').value;
+                let oneRM, equationName;
+                
+                // Calcular 1RM com base na equação selecionada
+                switch (equationSetting) {
+                    case 'brzycki':
+                        oneRM = weight / (1.0278 - (0.0278 * reps));
+                        equationName = 'Brzycki';
+                        break;
+                    case 'epley':
+                        oneRM = weight * (1 + (0.0333 * reps));
+                        equationName = 'Epley';
+                        break;
+                    case 'lander':
+                        oneRM = (100 * weight) / (101.3 - (2.67123 * reps));
+                        equationName = 'Lander';
+                        break;
+                    default:
+                        oneRM = weight / (1.0278 - (0.0278 * reps));
+                        equationName = 'Brzycki';
+                }
+                
+                const roundedOneRM = Math.round(oneRM * 10) / 10;
+                
+                // Update results
+                document.getElementById('rm1Result').textContent = `${roundedOneRM} kg`;
+                document.getElementById('equationUsed').textContent = equationName;
+                
+                // Calculate and update intensity zones
+                document.getElementById('zone95').textContent = `${Math.round(roundedOneRM * 0.95 * 10) / 10} kg`;
+                document.getElementById('zone90').textContent = `${Math.round(roundedOneRM * 0.9 * 10) / 10} kg`;
+                document.getElementById('zone85').textContent = `${Math.round(roundedOneRM * 0.85 * 10) / 10} kg`;
+                document.getElementById('zone80').textContent = `${Math.round(roundedOneRM * 0.8 * 10) / 10} kg`;
+                document.getElementById('zone70').textContent = `${Math.round(roundedOneRM * 0.7 * 10) / 10} kg`;
+                document.getElementById('zone60').textContent = `${Math.round(roundedOneRM * 0.6 * 10) / 10} kg`;
+                
+                // Armazenar os dados para uso no salvamento
+                // Criando elementos ocultos para armazenar os dados
+                const weightData = weight + " kg";
+                const repsData = reps.toString();
+                
+                // Transition to results page com animação
+                showPage(resultsPage, true, 'right');
+                
+                // Quando o botão de salvar for clicado, precisamos ter acesso a esses dados
+                saveButton.onclick = function() {
+                    showSaveModal();
+                    
+                    // Configurar o evento de envio do formulário de salvamento
+                    saveForm.onsubmit = function(e) {
+                        e.preventDefault();
+                        
+                        // Obter o nome do registro
+                        const saveName = document.getElementById('saveName').value;
+                        
+                        if (!saveName.trim()) {
+                            alert('Por favor, insira um nome para o registro.');
+                            return;
+                        }
+                        
+                        // Salvar no localStorage
+                        const savedCalculations = JSON.parse(localStorage.getItem('rmCalculations') || '[]');
+                        savedCalculations.push({
+                            id: Date.now(), // ID único baseado no timestamp
+                            name: saveName,
+                            date: new Date().toISOString(),
+                            oneRM: `${roundedOneRM} kg`,
+                            weight: weightData,
+                            reps: repsData,
+                            equation: equationName,
+                            zones: {
+                                z95: document.getElementById('zone95').textContent,
+                                z90: document.getElementById('zone90').textContent,
+                                z85: document.getElementById('zone85').textContent,
+                                z80: document.getElementById('zone80').textContent,
+                                z70: document.getElementById('zone70').textContent,
+                                z60: document.getElementById('zone60').textContent
+                            }
+                        });
+                        localStorage.setItem('rmCalculations', JSON.stringify(savedCalculations));
+                        
+                        // Esconder o modal
+                        hideSaveModal();
+                        
+                        // Mostrar feedback de salvamento
+                        const originalText = saveButton.innerHTML;
+                        saveButton.innerHTML = `Salvo como "${saveName}"`;
+                        saveButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+                        saveButton.classList.add('bg-green-500');
+                        
+                        // Restaurar o botão após 2 segundos
+                        setTimeout(() => {
+                            saveButton.innerHTML = originalText;
+                            saveButton.classList.remove('bg-green-500');
+                            saveButton.classList.add('bg-green-600', 'hover:bg-green-700');
+                        }, 2000);
+                    };
+                };
+            });
+            
+            // Evento de voltar
+            backButton.addEventListener('click', function() {
+                showPage(calculatorPage, true, 'left');
+            });
+            
+            // Evento de cancelar salvamento
+            cancelSave.addEventListener('click', function() {
+                hideSaveModal();
+            });
+            
+            // Evento de limpar dados
+            clearDataButton.addEventListener('click', function() {
+                showDeleteModal();
+            });
+            
+            // Evento de cancelar exclusão
+            cancelDelete.addEventListener('click', function() {
+                hideDeleteModal();
+            });
+            
+            // Evento de confirmar exclusão
+            confirmDelete.addEventListener('click', function() {
+                localStorage.removeItem('rmCalculations');
+                hideDeleteModal();
+                
+                // Mostrar feedback
+                clearDataButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    Dados excluídos com sucesso
+                `;
+                
+                // Restaurar o botão após 2 segundos
+                setTimeout(() => {
+                    clearDataButton.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                        Limpar todos os cálculos salvos
+                    `;
+                }, 2000);
+                
+                // Atualizar a lista de salvos
+                loadSavedCalculations();
+            });
+            
+            // Eventos para o modal de exclusão de um único registro
+            cancelSingleDelete.addEventListener('click', function() {
+                hideSingleDeleteModal();
+            });
+            
+            confirmSingleDelete.addEventListener('click', function() {
+                if (currentDeleteId) {
+                    deleteSavedCalculation(currentDeleteId);
+                    hideSingleDeleteModal();
+                }
+            });
+            
+            // Fechar modais ao clicar fora deles
+            saveModal.addEventListener('click', function(e) {
+                if (e.target === saveModal) {
+                    hideSaveModal();
+                }
+            });
+            
+            deleteModal.addEventListener('click', function(e) {
+                if (e.target === deleteModal) {
+                    hideDeleteModal();
+                }
+            });
+            
+            singleDeleteModal.addEventListener('click', function(e) {
+                if (e.target === singleDeleteModal) {
+                    hideSingleDeleteModal();
+                }
+            });
+            
+            // Inicializar a página
+            calculatorPage.classList.add('active');
+            calculatorPage.classList.remove('left', 'right');
+            resultsPage.classList.add('right');
+            resultsPage.classList.remove('active', 'left');
+            savedPage.classList.add('hidden-page');
+            savedPage.classList.remove('active');
+            helpPage.classList.add('hidden-page');
+            helpPage.classList.remove('active');
+            settingsPage.classList.add('hidden-page');
+            settingsPage.classList.remove('active');
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9645d980d0aee2ce',t:'MTc1MzM4NTYxMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("SW registrado"))
+      .catch(err => console.error("Erro no SW", err));
+  }
+</script>
+</body>
+</html>
